@@ -6,4 +6,4 @@
 */
 -- AlterTable
 ALTER TABLE "User" ADD COLUMN     "role" TEXT NOT NULL DEFAULT 'user',
-ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL;
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW();
