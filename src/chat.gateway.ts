@@ -71,14 +71,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Socket mapping'i kaydet
       this.socketToUser.set(client.id, {
-        userId: client.userId,
-        email: client.email,
+        userId: client.userId!,
+        email: client.email!,
       });
 
       console.log(`User connected: ${client.email} (${client.id})`);
       
       // Kullanıcının room'larını gönder
-      const userRooms = await this.roomService.getUserRooms(client.userId);
+      const userRooms = await this.roomService.getUserRooms(client.userId!);
       client.emit('user-rooms', userRooms);
       
     } catch (error) {
@@ -122,10 +122,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.roomUsers.set(data.roomId, new Map());
       }
       
-      const roomUserMap = this.roomUsers.get(data.roomId);
-      roomUserMap.set(client.userId, {
-        userId: client.userId,
-        email: client.email,
+      const roomUserMap = this.roomUsers.get(data.roomId)!;
+      roomUserMap.set(client.userId!, {
+        userId: client.userId!,
+        email: client.email!,
         socketId: client.id,
       });
 
@@ -167,8 +167,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const chatMessage: ChatMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       message: data.message,
-      userId: client.userId,
-      email: client.email,
+      userId: client.userId!,
+      email: client.email!,
       roomId: data.roomId,
       timestamp: new Date(),
     };
@@ -196,8 +196,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.to(data.roomId).emit('video-sync', {
       action: data.action,
       timestamp: data.timestamp,
-      userId: client.userId,
-      email: client.email,
+      userId: client.userId!,
+      email: client.email!,
     });
 
     console.log(`Video ${data.action} in ${data.roomId} by ${client.email}`);
@@ -222,7 +222,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const targetUser = roomUserMap.get(data.targetUserId);
       if (targetUser) {
         this.server.to(targetUser.socketId).emit('webrtc-signal', {
-          fromUserId: client.userId,
+          fromUserId: client.userId!,
           signal: data.signal,
         });
       }
@@ -234,7 +234,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     
     // Room kullanıcıları listesinden çıkar
     const roomUserMap = this.roomUsers.get(roomId);
-    if (roomUserMap) {
+    if (roomUserMap && client.userId) {
       roomUserMap.delete(client.userId);
       
       // Room'daki diğer kullanıcılara güncellemeyi gönder
