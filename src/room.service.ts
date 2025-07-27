@@ -45,7 +45,12 @@ export class RoomService {
     });
 
     // Room sahibini otomatik olarak üye yap
-    await this.joinRoom(room.id, ownerId);
+    await this.prisma.roomMember.create({
+      data: {
+        userId: ownerId,
+        roomId: room.id
+      }
+    });
 
     return room;
   }
