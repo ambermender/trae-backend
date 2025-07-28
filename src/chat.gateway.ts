@@ -229,6 +229,141 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @SubscribeMessage('add-friend')
+  handleAddFriend(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: {
+      friendEmail: string;
+      roomId: string;
+    },
+  ) {
+    if (!client.currentRoom || client.currentRoom !== data.roomId) {
+      client.emit('error', { message: 'Room\'a katılmalısınız' });
+      return;
+    }
+
+    // Arkadaş davetini room'daki tüm kullanıcılara bildir
+    const friendInvitation = {
+      id: `invite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      fromEmail: client.email!,
+      toEmail: data.friendEmail,
+      roomId: data.roomId,
+      roomName: 'Room', // Bu gerçek room adı ile değiştirilebilir
+      timestamp: new Date(),
+    };
+
+    // Room'daki tüm kullanıcılara arkadaş davetini bildir
+    this.server.to(data.roomId).emit('friend-invitation', friendInvitation);
+    
+    // Daveti gönderen kullanıcıya onay mesajı
+    client.emit('friend-invite-sent', {
+      message: `${data.friendEmail} adresine davet gönderildi`,
+      friendEmail: data.friendEmail
+    });
+
+    console.log(`Friend invitation sent from ${client.email} to ${data.friendEmail} in room ${data.roomId}`);
+  }
+
+  @SubscribeMessage('screen-share-start')
+  handleScreenShareStart(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string },
+  ) {
+    if (!client.currentRoom || client.currentRoom !== data.roomId) {
+      return;
+    }
+
+    // Room'daki diğer kullanıcılara ekran paylaşımının başladığını bildir
+    client.to(data.roomId).emit('user-screen-share-started', {
+      userId: client.userId!,
+      email: client.email!,
+    });
+
+    console.log(`${client.email} started screen sharing in room ${data.roomId}`);
+  }
+
+  @SubscribeMessage('screen-share-stop')
+  handleScreenShareStop(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string },
+  ) {
+    if (!client.currentRoom || client.currentRoom !== data.roomId) {
+      return;
+    }
+
+    // Room'daki diğer kullanıcılara ekran paylaşımının durduğunu bildir
+    client.to(data.roomId).emit('user-screen-share-stopped', {
+      userId: client.userId!,
+      email: client.email!,
+    });
+
+    console.log(`${client.email} stopped screen sharing in room ${data.roomId}`);
+  }
+
+  @SubscribeMessage('update-room-settings')
+  handleUpdateRoomSettings(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string; settings: any },
+  ) {
+    const user = this.socketToUser.get(client.id);
+    if (!user) return;
+
+    // Broadcast room settings update to all users in the room
+    client.to(data.roomId).emit('room-settings-updated', {
+      settings: data.settings,
+      updatedBy: user.email
+    });
+  }
+
+  @SubscribeMessage('kick-user')
+  handleKickUser(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string; targetEmail: string },
+  ) {
+    const user = this.socketToUser.get(client.id);
+    if (!user) return;
+
+    // Find the target user's socket
+    const targetSocket = Array.from(this.socketToUser.entries())
+      .find(([_, u]) => u.email === data.targetEmail)?.[0];
+    
+    if (targetSocket) {
+      const targetSocketObj = this.server.sockets.sockets.get(targetSocket);
+      if (targetSocketObj) {
+        // Remove user from room
+        this.leaveRoom(targetSocketObj as AuthenticatedSocket, data.roomId);
+        
+        // Notify the kicked user
+        targetSocketObj.emit('kicked-from-room', {
+          roomId: data.roomId,
+          kickedBy: user.email
+        });
+        
+        // Notify other users in the room
+        client.to(data.roomId).emit('user-kicked', {
+          kickedUser: data.targetEmail,
+          kickedBy: user.email
+        });
+      }
+    }
+  }
+
+  @SubscribeMessage('update-user-status')
+  handleUpdateUserStatus(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { roomId: string; status: string },
+  ) {
+    const user = this.socketToUser.get(client.id);
+    if (!user) return;
+
+    // Broadcast user status update to room
+    client.to(data.roomId).emit('user-status-updated', {
+      userId: user.userId,
+      email: user.email,
+      status: data.status
+    });
+  }
+
   private leaveRoom(client: AuthenticatedSocket, roomId: string) {
     client.leave(roomId);
     
